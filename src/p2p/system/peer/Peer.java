@@ -2,6 +2,7 @@ package p2p.system.peer;
 
 
 import java.math.BigInteger;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -102,7 +103,7 @@ public final class Peer extends ComponentDefinition {
 	private HashMap<Address, PeerAddress> fdPeers;
 	
 	private HashMap<BigInteger, BigInteger> mySubscriptions;				// <Topic ID, last sequence number>
-	private HashMap<BigInteger, Vector<Notification>> eventRepository;		// <Topic ID, list of Notification>
+	private HashMap<BigInteger, Vector<Publication>> eventRepository;		// <Topic ID, list of Notification>
 	private HashMap<BigInteger, Set<Address>> forwardingTable;		// <Topic ID, list of PeerAddress (your
 	
 	private BigInteger publicationSeqNum;
@@ -123,7 +124,7 @@ public final class Peer extends ComponentDefinition {
 		fdPeers = new HashMap<Address, PeerAddress>();
 		rand = new Random(System.currentTimeMillis());
 		mySubscriptions =  new HashMap<BigInteger, BigInteger>();
-		eventRepository = new HashMap<BigInteger, Vector<Notification>>();
+		eventRepository = new HashMap<BigInteger, Vector<Publication>>();
 		forwardingTable = new HashMap<BigInteger, Set<Address>>();
 
 		fd = create(PingFailureDetector.class);
@@ -153,6 +154,7 @@ public final class Peer extends ComponentDefinition {
 		subscribe(handlePeerFailureSuspicion, fd.getPositive(FailureDetector.class));
 		
 		
+		subscribe(eventPublicationHandler, network);
 		subscribe(eventNotificationHandler, network);
 		
 		
@@ -488,12 +490,86 @@ if (suspectedPeer.equals(pred))
 	}
 
 
+	Handler<Publication> eventPublicationHandler = new Handler<Publication>() {
+		public void handle(Publication publication) {
+			// EVENT REPOSITORY
+			if (between(publication.getTopic(), pred.getPeerId(), myPeerAddress.getPeerId())) {
+				// I am the rendezvous node
+				
+				// Add the publication to the EventRepository according to topicID
+				Vector<Publication> eventList = eventRepository.get(publication.getTopic());
+				if (eventRepository.containsKey(publication.getTopic())) {
+					eventList = new Vector<Publication>();
+				}
+				eventList.add(publication);
+				
+				// Forward the corresponding notification based on the forwardingTable
+				Notification notification = new Notification(
+						publication.getTopic(),
+						publication.getSequenceNum(),
+						publication.getContent(), 
+						myAddress,
+						null);
+				forwardNotification(notification);
+			}
+			else {
+				// I am not the rendezvous node
+				
+				// should I store this publication? although I am not the rendezvous node.
+				
+				// route this publication to the rendezvous node
+				Publication newPublication = new Publication(
+						publication.getTopic(),
+						publication.getSequenceNum(),
+						publication.getContent(),
+						publication.getSource(),
+						publication.getDestination());
+				routeMessage(newPublication, publication.getTopic());
+			}
+		}
+	};
+	
+	private void forwardNotification(Notification msg) {
+		// Forward the corresponding notification based on the forwardingTable
+		Set<Address> subscriberlist = forwardingTable.get(msg.getTopic());
+		
+		if (subscriberlist == null) { 
+			System.out.println("No subscriber in the forwarding table");
+			return;
+		}
+			
+		Iterator<Address> itr = subscriberlist.iterator(); 
+		while(itr.hasNext()) {
+			Address nextHop = itr.next(); 
+			
+			Notification notification = new Notification(
+					msg.getTopic(),
+					msg.getSequenceNum(),
+					msg.getContent(), 
+					msg.getSource(),
+					nextHop);
+			
+			trigger(notification, network);
+		}
+	}
 
 	Handler<Notification> eventNotificationHandler = new Handler<Notification>() {
 		@Override
 		public void handle(Notification msg) {
-			System.out.println("Peer " + myAddress.getId() 
-					+ " received a notification about " + msg.getTopic());
+			
+			// Check whether I am also the subscriber for that topicID
+			if (mySubscriptions.containsKey(msg.getTopic())) {
+				System.out.println("# Peer " + myPeerAddress.getPeerId()
+						+ " , as a subscriber, received a notification about " + msg.getTopic());
+			} 
+			else {
+				System.out.println("Peer " + myPeerAddress.getPeerId()
+						+ " , as a forwarder only, received a notification about " + msg.getTopic());
+			}
+			
+			// Forward the notification using the forwardingTable
+			forwardNotification(msg);
+			
 		}
 	};
 	
@@ -660,7 +736,26 @@ if (suspectedPeer.equals(pred))
 		System.out.println("Peer " + myPeerAddress.getPeerId() + " is publishing an event.");
 		
 		BigInteger hashedTopicID = BigInteger.valueOf(topicID.hashCode());
-		trigger(new Publication(hashedTopicID, publicationSeqNum, content, myAddress, serverAddress), network);
+		Publication publication = new Publication(topicID, publicationSeqNum, content, myAddress, null);
+		
+		BigInteger destination = hashedTopicID;
+		// The publisher is the rendezvous itself
+		// This should not be the ideal case.
+		if (pred != null && between(destination, pred.getPeerId(), myPeerAddress.getPeerId())) {
+			// I am the rendezvous node
+			// Forward the corresponding notification based on the forwardingTable
+			Notification notification = new Notification(
+					publication.getTopic(),
+					publication.getSequenceNum(),
+					publication.getContent(), 
+					myAddress,
+					null);
+			forwardNotification(notification);
+		}
+		else {
+			routeMessage(publication, hashedTopicID);
+		}
+
 		publicationSeqNum.add(BigInteger.ONE);
 	}
 	
