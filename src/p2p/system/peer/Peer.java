@@ -190,7 +190,7 @@ public final class Peer extends ComponentDefinition {
 			trigger(new BootstrapClientInit(myAddress, init.getBootstrapConfiguration()), bootstrap.getControl());
 			trigger(new PingFailureDetectorInit(myAddress, init.getFdConfiguration()), fd.getControl());
 			
-			System.out.println("Peer " + myAddress.getId() + " is initialized.");
+			System.out.println("Peer " + myPeerAddress.getPeerId() + " is initialized.");
 		}
 	};
 
@@ -493,12 +493,16 @@ if (suspectedPeer.equals(pred))
 	Handler<Publication> eventPublicationHandler = new Handler<Publication>() {
 		public void handle(Publication publication) {
 			// EVENT REPOSITORY
-			if (between(publication.getTopic(), pred.getPeerId(), myPeerAddress.getPeerId())) {
+			BigInteger hashedTopicID = hashFunction(publication.getTopic());
+			
+			if (between(hashedTopicID, pred.getPeerId(), myPeerAddress.getPeerId())) {
 				// I am the rendezvous node
+				
+				System.out.println("*** $ peer " + myPeerAddress.getPeerId() + " is the rendezvous node for topicID:" + publication.getTopic());
 				
 				// Add the publication to the EventRepository according to topicID
 				Vector<Publication> eventList = eventRepository.get(publication.getTopic());
-				if (eventRepository.containsKey(publication.getTopic())) {
+				if (!eventRepository.containsKey(publication.getTopic())) {
 					eventList = new Vector<Publication>();
 				}
 				eventList.add(publication);
@@ -524,7 +528,7 @@ if (suspectedPeer.equals(pred))
 						publication.getContent(),
 						publication.getSource(),
 						publication.getDestination());
-				routeMessage(newPublication, publication.getTopic());
+				routeMessage(newPublication, hashedTopicID);
 			}
 		}
 	};
@@ -560,7 +564,7 @@ if (suspectedPeer.equals(pred))
 			// Check whether I am also the subscriber for that topicID
 			if (mySubscriptions.containsKey(msg.getTopic())) {
 				System.out.println("# Peer " + myPeerAddress.getPeerId()
-						+ " , as a subscriber, received a notification about " + msg.getTopic());
+						+ ", as a subscriber, received a notification about " + msg.getTopic());
 			} 
 			else {
 				System.out.println("Peer " + myPeerAddress.getPeerId()
@@ -579,18 +583,19 @@ if (suspectedPeer.equals(pred))
 			System.out.println("- Peer " + myPeerAddress.getPeerId() + " received an UnsubcribeRequest.");
 			
 			UnsubscribeRequest newMsg = new UnsubscribeRequest(msg.getTopic(), myAddress, null);
+			BigInteger hashedTopicID = hashFunction(msg.getTopic());
 			
 			Set<Address> subscriberlist = forwardingTable.get(newMsg.getTopic());
 			if (subscriberlist == null) {
 				System.out.println("No entry in the forwarding table.");
-				routeMessage(newMsg, newMsg.getTopic());
+				routeMessage(newMsg, hashedTopicID);
 			}
 			else {
 				subscriberlist.remove(msg.getSource());
 				if (subscriberlist.isEmpty()) {
 					System.out.println("No more subscribers.");
 					forwardingTable.remove(newMsg.getTopic());
-					routeMessage(newMsg, newMsg.getTopic());
+					routeMessage(newMsg, hashedTopicID);
 				} else {
 					forwardingTable.put(newMsg.getTopic(), subscriberlist);
 					System.out.println("Not forwarding the UnsubscribeRequest. subscriberlist: " + subscriberlist.toString());
@@ -603,7 +608,7 @@ if (suspectedPeer.equals(pred))
 	Handler<SubscribeRequest> subscribeHandler = new Handler<SubscribeRequest>() {
 		public void handle(SubscribeRequest msg) {
 			// 
-			System.out.println("+ Peer " + myPeerAddress.getPeerId() + " received a SubcribeRequest.");
+			//System.out.println("\n+ Peer " + myPeerAddress.getPeerId() + " received a SubcribeRequest.");
 			
 			// TODO: lastSequenceNum, should I check with the lastSequenceNum with respect to the forwarding table.
 			SubscribeRequest newMsg = new SubscribeRequest(msg.getTopic(), msg.getLastSequenceNum(), myAddress, null);
@@ -617,7 +622,13 @@ if (suspectedPeer.equals(pred))
 				
 			SubscribeRequest msg2 = new SubscribeRequest(
 					newMsg.getTopic(), newMsg.getLastSequenceNum(), newMsg.getSource(), null);
-			routeMessage(msg2, newMsg.getTopic());
+			
+			BigInteger hashedTopicID = hashFunction(msg.getTopic());
+			
+			//System.out.println("id: " + myPeerAddress.getPeerId() + " destination: " + hashedTopicID + " topicID: " + msg.getTopic());
+			
+			routeMessage(msg2, hashedTopicID);
+			//routeMessage(msg2, msg.getTopic());
 		}
 	};
 	
@@ -636,19 +647,40 @@ if (suspectedPeer.equals(pred))
 			return false; 
 	}
 	
+	private BigInteger hashFunction(BigInteger bi) {
+		BigInteger result;
+		
+		int hashCode = bi.toString().hashCode();
+		result = BigInteger.valueOf(hashCode);
+		
+		if (hashCode < 0) {
+			result = result.abs().add(BigInteger.valueOf(Integer.MAX_VALUE));
+		}
+		
+		return result.mod(RING_SIZE);
+			
+	}
+	
 	private void routeMessage(Message msg, BigInteger destination) {
 		BigInteger oldDistance = RING_SIZE;
 		BigInteger newDistance = RING_SIZE;
 		Address address = null;
 		BigInteger nextPeer = BigInteger.ZERO;
 		
+		//System.out.println("id: " + myPeerAddress.getPeerId() + " destination: " + destination);
+		
 		if (pred != null && between(destination, pred.getPeerId(), myPeerAddress.getPeerId())) {
 			// I am the rendezvous node
-			System.out.println("*** Peer " + myPeerAddress.getPeerId() + " is the rendezvous node for " + destination);
+			System.out.println("***");// Peer " + myPeerAddress.getPeerId() + " is the rendezvous node for " + destination);
+		}
+		else if (succ!= null && between(destination, myPeerAddress.getPeerId(), succ.getPeerId())) {
+			// The rendezvous node is the successor
+			address = succ.getPeerAddress();
 		}
 		else {
 			// I am not the rendezvous node, route the message to the rendezvous node
 
+			BigInteger nextHopID = null;
 			if (pred == null)
 				System.err.println("Peer " + myPeerAddress.getPeerId() + ": pred is null.");
 			
@@ -656,16 +688,23 @@ if (suspectedPeer.equals(pred))
 			if (succ!= null) {
 				//System.out.println("succ: " + succ.getPeerId() + " destination: " + destination);
 				
+				nextHopID = succ.getPeerId();
 				// peerID < topic =: finger ------ dest
-				if (succ.getPeerId().compareTo(destination) == -1 
-						|| succ.getPeerId().compareTo(destination) == 0) {
-					newDistance = destination.subtract(succ.getPeerId());
+				if (nextHopID.compareTo(destination) == -1 
+						|| nextHopID.compareTo(destination) == 0) {
+					newDistance = destination.subtract(nextHopID);
 				}
 				// peerID > topic =: finger --- max --- dest
 				else {
-					newDistance = destination.subtract(succ.getPeerId()).add(RING_SIZE);							
+					newDistance = RING_SIZE.subtract(nextHopID);
+					newDistance = newDistance.add(destination);//destination.subtract(nextHopID).add(RING_SIZE);	
+					//System.out.println("RING_SIZE: " +  RING_SIZE + " xxx " + BigInteger.valueOf(Integer.MAX_VALUE).multiply(BigInteger.valueOf(2)));
 				}
 			}
+			else
+				System.err.println("succ is null");
+			
+			//System.out.println("nextHopID: " + nextHopID + ", distance: " + newDistance);
 			
 			// newDistance < oldDisntace
 			if (newDistance.compareTo(oldDistance) == -1) {
@@ -686,45 +725,57 @@ if (suspectedPeer.equals(pred))
 					//		+ " oldDistance " + oldDistance);
 					
 					// peerID < topic =: finger ------ dest
-					if (fingers[i].getPeerId().compareTo(destination) == -1
-							|| fingers[i].getPeerId().compareTo(destination) == 0) {
-						newDistance = destination.subtract(fingers[i].getPeerId());
+					nextHopID = fingers[i].getPeerId();
+					if (nextHopID.compareTo(destination) == -1
+							|| nextHopID.compareTo(destination) == 0) {
+						newDistance = destination.subtract(nextHopID);
 					}
 					// peerID > topic =: finger --- max --- dest
 					else {
-						newDistance = destination.subtract(fingers[i].getPeerId()).add(RING_SIZE);							
+						//newDistance = destination.subtract(fingers[i].getPeerId()).add(RING_SIZE);
+						newDistance = RING_SIZE.subtract(nextHopID);
+						newDistance = newDistance.add(destination);//destination.subtract(nextHopID).add(RING_SIZE);	
 					}
 				}
 				
+				//System.out.println("nextHopID: " + nextHopID + ", distance: " + newDistance);
+				
 				// newDistance < oldDisntace
 				if (newDistance.compareTo(oldDistance) == -1) {
+					//System.out.println("newDistance: " + newDistance + ", oldDistance:" + oldDistance);
 					oldDistance = newDistance;
 					address = fingers[i].getPeerAddress();
 					nextPeer = fingers[i].getPeerId();
 				}
 			}
 		}
+		//System.out.println("oldDistance:" + oldDistance);
 		
 		if (address != null) { 
-			System.out.println("Peer " + myPeerAddress.getPeerId() + " routed a message on id " + nextPeer + " "  + address);
+			//System.out.println("Peer " + myPeerAddress.getPeerId() + " routed a message on id " + nextPeer + " "  + address);
 			msg.setDestination(address);
 			trigger(msg, network);
 		}
+		
+		//else
+		//	System.err.println("Message is dropped.");
+		
 	}
 	
 	// -------------------------------------------------------------------------
 	private void sendSubscribeRequest(BigInteger topicID, BigInteger lastSequenceNum) {
 		
-		BigInteger hashedTopicID = BigInteger.valueOf(topicID.hashCode());
+		BigInteger hashedTopicID = hashFunction(topicID);
 		SubscribeRequest sub = new SubscribeRequest(topicID, lastSequenceNum, myAddress, null);
 
 		System.out.println("+ Peer " + myPeerAddress.getPeerId() + " is triggering a SubscribeRequest topicID: " +topicID + " hashed: " +hashedTopicID);
 
 		routeMessage(sub, hashedTopicID);
+		//routeMessage(sub, topicID);
 	}
 	
 	private void sendUnsubscribeRequest(BigInteger topicID) {
-		BigInteger hashedTopicID = BigInteger.valueOf(topicID.hashCode());
+		BigInteger hashedTopicID = hashFunction(topicID);
 		UnsubscribeRequest unsub = new UnsubscribeRequest(topicID, myAddress, null);
 		
 		System.out.println("- Peer " + myPeerAddress.getPeerId() + " is triggering a UnsubscribeRequest topicID: " +topicID + " hashed: " +hashedTopicID);
@@ -733,17 +784,20 @@ if (suspectedPeer.equals(pred))
 	}
 	
 	private void publish(BigInteger topicID, String content) {
-		System.out.println("Peer " + myPeerAddress.getPeerId() + " is publishing an event.");
+		System.out.println("\nPeer " + myPeerAddress.getPeerId() + " is publishing an event.");
 		
-		BigInteger hashedTopicID = BigInteger.valueOf(topicID.hashCode());
 		Publication publication = new Publication(topicID, publicationSeqNum, content, myAddress, null);
 		
-		BigInteger destination = hashedTopicID;
+		BigInteger hashedTopicID = hashFunction(topicID);
+		
 		// The publisher is the rendezvous itself
 		// This should not be the ideal case.
-		if (pred != null && between(destination, pred.getPeerId(), myPeerAddress.getPeerId())) {
+		
+		if (pred != null && between(hashedTopicID, pred.getPeerId(), myPeerAddress.getPeerId())) {
 			// I am the rendezvous node
-			// Forward the corresponding notification based on the forwardingTable
+			// Stop routing the publication
+			// And then, start to forward the corresponding notification based on the forwardingTable
+			System.out.println("$ I am the rendezvous node.");
 			Notification notification = new Notification(
 					publication.getTopic(),
 					publication.getSequenceNum(),
@@ -753,6 +807,7 @@ if (suspectedPeer.equals(pred))
 			forwardNotification(notification);
 		}
 		else {
+			System.out.println("$ Route the message.");
 			routeMessage(publication, hashedTopicID);
 		}
 
