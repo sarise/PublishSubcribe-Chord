@@ -1,17 +1,25 @@
 package p2p.simulator.core;
 
 
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
+import java.util.Set;
 import java.util.Vector;
 
 import p2p.main.Configuration;
-import p2p.simulator.core.event.AllPeerSubscribe;
+import p2p.simulator.core.event.AllPeerJoin;
+import p2p.simulator.core.event.AllPeerSubscribe_C;
+import p2p.simulator.core.event.AllPeerSubscribe_T;
 import p2p.simulator.core.event.PeerFail;
 import p2p.simulator.core.event.PeerJoin;
 import p2p.simulator.core.event.PeerPublish;
@@ -51,6 +59,10 @@ import se.sics.kompics.timer.Timer;
 
 public final class Simulator extends ComponentDefinition {
 
+	//private final String TWITTER_DATASET_FILENAME = "./graph.sub";
+	private final String TWITTER_DATASET_FILENAME = "/Users/usuario/Documents/EMDC/sem3 2011/ID2219 Implementation of Distributed Computing/PublishSubscribeP2P/bin/graph.sub";
+	private final int DATASET_LENGTH = 100;
+	
 	Positive<SimulatorPort> simulator = positive(SimulatorPort.class);
 	Positive<Network> network = positive(Network.class);
 	Positive<Timer> timer = positive(Timer.class);
@@ -70,7 +82,9 @@ public final class Simulator extends ComponentDefinition {
 	private PeerConfiguration peerConfiguration;	
 	private PingFailureDetectorConfiguration fdConfiguration;
 	
-	private Vector<BigInteger>[] blocks;
+	private Set<BigInteger>[] blocks; 										// for correlated subscription model
+	private Set<BigInteger> twitterIDs;											// for twitter 
+	private HashMap<BigInteger, Set<BigInteger>> subscriptionListForAllNodes;	// for twitter
 
 //-------------------------------------------------------------------	
 	public Simulator() {
@@ -83,15 +97,17 @@ public final class Simulator extends ComponentDefinition {
 		subscribe(handleGenerateReport, timer);
 		
 		subscribe(handlePeerJoin, simulator);
+		subscribe(handleAllPeerJoin, simulator);
 		subscribe(handlePeerFail, simulator);
 		subscribe(handleServerStart, simulator);
 		subscribe(handlePeerSubscribe, simulator);
 		subscribe(handlePeerUnsubscribe, simulator);
 		subscribe(handlePeerPublish, simulator);
-		subscribe(handleAllPeerSubscribe, simulator);
+		subscribe(handleAllPeerSubscribe_T, simulator);
+		subscribe(handleAllPeerSubscribe_C, simulator);
 	}
 
-//-------------------------------------------------------------------	WE HAVE INITIALIZED THE INFORMATION IN CONSTRUCTOR
+//-------------------------------------------------------------------	
 	Handler<SimulatorInit> handleInit = new Handler<SimulatorInit>() {
 		public void handle(SimulatorInit init) {
 			peers.clear();
@@ -113,7 +129,7 @@ public final class Simulator extends ComponentDefinition {
 		}
 	};
 
-//-------------------------------------------------------------------	WE DON'T NEED THIS
+//-------------------------------------------------------------------	
 	Handler<PeerJoin> handlePeerJoin = new Handler<PeerJoin>() {
 		public void handle(PeerJoin event) {
 			BigInteger id = event.getPeerId();
@@ -133,9 +149,32 @@ public final class Simulator extends ComponentDefinition {
 			trigger(new JoinPeer(id), newPeer.getPositive(PeerPort.class));
 		}
 	};
+	
+	//-------------------------------------------------------------------	
+	Handler<AllPeerJoin> handleAllPeerJoin = new Handler<AllPeerJoin>() {
+		public void handle(AllPeerJoin event) {
+
+			// Read from the Twitter dataset
+			readDataset(TWITTER_DATASET_FILENAME);
+			
+			System.out.println("All Peer Join. size: " + twitterIDs.size());
+			
+			// assuming that there is no duplicate in the list of node ID
+		    Iterator<BigInteger> iter = twitterIDs.iterator();
+		    while (iter.hasNext()) {
+		    	BigInteger id = iter.next();
+				Component newPeer = createAndStartNewPeer(id);
+				view.addNode(id);
+
+				trigger(new JoinPeer(id), newPeer.getPositive(PeerPort.class));
+		    }
+			System.out.println("All Peer Join end");
+
+		}
+	};
 
 	
-	//-------------------------------------------------------------------	WE DON'T NEED THIS
+	//-------------------------------------------------------------------	
 	Handler<ServerStart> handleServerStart = new Handler<ServerStart>() {
 		public void handle(ServerStart event) {
 			BigInteger id = event.getPeerId();
@@ -153,7 +192,7 @@ public final class Simulator extends ComponentDefinition {
 			trigger(new StartServer(id), server.getPositive(PeerPort.class));
 		}
 	};
-//-------------------------------------------------------------------	WE DON'T NEED THIS
+//-------------------------------------------------------------------	
 	Handler<PeerFail> handlePeerFail = new Handler<PeerFail>() {
 		public void handle(PeerFail event) {
 			BigInteger id = view.getNode(event.getPeerId());
@@ -204,8 +243,9 @@ public final class Simulator extends ComponentDefinition {
 		}
 	};
 	
-	Handler<AllPeerSubscribe> handleAllPeerSubscribe = new Handler<AllPeerSubscribe>() {
-		public void handle(AllPeerSubscribe event) {
+	// Correlated Subscription Model
+	Handler<AllPeerSubscribe_C> handleAllPeerSubscribe_C = new Handler<AllPeerSubscribe_C>() {
+		public void handle(AllPeerSubscribe_C event) {
 			
 			Properties configFile = new Properties();
 			try {
@@ -220,6 +260,158 @@ public final class Simulator extends ComponentDefinition {
 		
 		}
 	};
+	
+	// Twitter 
+	Handler<AllPeerSubscribe_T> handleAllPeerSubscribe_T = new Handler<AllPeerSubscribe_T>() {
+		public void handle(AllPeerSubscribe_T event) {
+
+			System.out.println("All Peer Susbcribe");
+			// assuming that the twitter dataset was read successfully.
+			for (Map.Entry<BigInteger, Set<BigInteger>> entry: subscriptionListForAllNodes.entrySet()) {
+			    BigInteger id = entry.getKey();
+			    Set<BigInteger> subscriptions = entry.getValue();
+			    Component peer = peers.get(id);
+			    if(peer!=null)
+			    System.out.println("Peer null check");
+			   
+				
+
+			    // do subscription init
+			    SubscriptionInit si = new SubscriptionInit(subscriptions);
+				Positive pos = peer.getPositive(PeerPort.class);
+				trigger(si, pos);
+			}
+		
+		}
+	};
+	
+	private void readDataset(String fileName) {
+		twitterIDs = new HashSet<BigInteger>();
+		subscriptionListForAllNodes = new HashMap<BigInteger, Set<BigInteger>>();
+		
+		int oldSrc = 0;
+		int newSrc = 0;
+		int subscription = 0;
+		boolean firstItr = true;
+
+		Set<BigInteger> subscriptions = new HashSet<BigInteger>();
+
+		try {
+			DataInputStream instr = new DataInputStream(
+					new BufferedInputStream(new FileInputStream(fileName)));
+
+			// while(instr.available()>0){
+			for (int i = 0; i < DATASET_LENGTH; i++) {
+				if (firstItr) {
+					oldSrc = instr.readInt();
+					newSrc = oldSrc;
+					subscription = instr.readInt();
+				
+					
+					
+					if (subscription < 0){
+						subscriptions.add(convertPositive(subscription));
+						twitterIDs.add(convertPositive(newSrc));
+						twitterIDs.add(convertPositive(subscription));
+					}
+					else{
+						subscriptions.add(BigInteger.valueOf(subscription));
+						twitterIDs.add(BigInteger.valueOf(subscription));
+						twitterIDs.add(BigInteger.valueOf(newSrc));
+					}
+
+					firstItr = false;
+
+					continue;
+				}
+				newSrc = instr.readInt();
+				subscription = instr.readInt();
+
+				if (newSrc == oldSrc) {
+					if (subscription < 0){
+						subscriptions.add(convertPositive(subscription));
+						if(!twitterIDs.contains(subscription))
+						twitterIDs.add(convertPositive(subscription));
+					}
+					else{
+						subscriptions.add(BigInteger.valueOf(subscription));
+						if(!twitterIDs.contains(subscription))
+						twitterIDs.add(BigInteger.valueOf(subscription));
+					}
+					
+					// TODO: do not hardcode!
+					if(i==99){
+						subscriptionListForAllNodes.put(BigInteger.valueOf(oldSrc), subscriptions);
+					}
+				} else {
+					if (oldSrc < 0){
+					
+						subscriptionListForAllNodes.put(convertPositive(oldSrc), subscriptions);
+						if(!twitterIDs.contains(oldSrc))
+						twitterIDs.add(convertPositive(oldSrc));
+						
+					}
+					else{
+						
+						subscriptionListForAllNodes.put(BigInteger.valueOf(oldSrc), subscriptions);
+						if(!twitterIDs.contains(oldSrc))
+						twitterIDs.add(BigInteger.valueOf(oldSrc));
+						
+					}
+					// set.clear();
+					subscriptions = new HashSet<BigInteger>();
+
+					if (subscription < 0){
+						subscriptions.add(convertPositive(subscription));
+						if(!twitterIDs.contains(subscription))
+						twitterIDs.add(convertPositive(subscription));
+					}
+					else{
+						subscriptions.add(BigInteger.valueOf(subscription));
+						if(!twitterIDs.contains(subscription))
+						twitterIDs.add(BigInteger.valueOf(subscription));
+					}
+
+					oldSrc = newSrc;
+				}
+
+			}
+			Set keys = subscriptionListForAllNodes.keySet();
+			Iterator it = keys.iterator();
+			for (int j = 0; j < keys.size(); j++) {
+				Object o = it.next();
+				Set values = subscriptionListForAllNodes.get(o);
+				Iterator it2 = values.iterator();
+
+				System.out.println("Key: " + o);
+				for (int k = 0; k < values.size(); k++) {
+					System.out.print(" || " + it2.next());
+				}
+				System.out.println("");
+			}
+			
+			it = twitterIDs.iterator();
+			for (int l = 0; l < twitterIDs.size(); l++) {
+				System.out.print(" unique " + it.next());
+			}
+
+
+			instr.close();
+		} catch (IOException iox) {
+			System.out.println("Problem reading " + fileName);
+		}
+		System.out.println("subscriptionListForAllNodes.size()" +subscriptionListForAllNodes.size());
+
+	}
+
+	private static BigInteger convertPositive(int id) {
+		BigInteger tmp;
+
+		id *= -1;
+		tmp = BigInteger.valueOf(id);
+		tmp = tmp.add(BigInteger.valueOf(Integer.MAX_VALUE));
+		return tmp;
+	}
 	
 	//-------------------------------------------------------------------	
 	Handler<PeerUnsubscribe> handlePeerUnsubscribe = new Handler<PeerUnsubscribe>() {
@@ -305,13 +497,13 @@ public final class Simulator extends ComponentDefinition {
 		// give the leftover to the last block
 		
 		
-		this.blocks = new Vector[numOfBlocks];
+		this.blocks = new Set[numOfBlocks];
 		
 		Iterator it = this.peersAddress.entrySet().iterator();
 		loop:
 		for (int i = 0; i < numOfBlocks; i++) {
 			// for each block
-			blocks[i] = new Vector<BigInteger>();
+			blocks[i] = new HashSet<BigInteger>();
 			for (int j = 0; j < peersPerBlock; j++) {
 				if (!it.hasNext())
 					break loop;

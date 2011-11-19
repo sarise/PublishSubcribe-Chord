@@ -1,5 +1,6 @@
 package p2p.simulator.scenarios;
 
+import java.math.BigInteger;
 import java.util.Properties;
 
 import se.sics.kompics.p2p.experiment.dsl.SimulationScenario;
@@ -35,47 +36,68 @@ public class Scenario1 extends Scenario {
 		publicationsModel = configFile.getProperty("PublicationsModel");
 		
 		NUMBER_OF_BITS = Integer.parseInt(configFile.getProperty("NumberOfBits"));
-			
+		
+		
 		StochasticProcess serverstart = new StochasticProcess() {{
 			eventInterArrivalTime(constant(100));
 			raise(1, Operations.serverStart, uniform(NUMBER_OF_BITS));
 		}};
 
-		// Joining
-		StochasticProcess joining = new StochasticProcess() {{
-			eventInterArrivalTime(constant(100));
-			raise(NUMBER_OF_PEERS, Operations.peerJoin, uniform(NUMBER_OF_BITS));
-		}};
 		
+// ---------------------------------------------------------------------
+		// Joining
+		StochasticProcess joining = null;
+		if (subscriptionsModel.equals("twitter")) {
+			joining = new StochasticProcess() {{
+				eventInterArrivalTime(constant(100));
+				raise(1, Operations.allPeerJoin);
+			}};
+		}
+		else {
+			joining = new StochasticProcess() {{
+				eventInterArrivalTime(constant(100));
+				raise(NUMBER_OF_PEERS, Operations.peerJoin, uniform(NUMBER_OF_BITS));
+			}};
+		}
+
+// ---------------------------------------------------------------------
+		// Subscription
 		StochasticProcess subscribing = null;
 		if (subscriptionsModel.equals("random")) {
-			// Subscription
 			subscribing = new StochasticProcess() {{
 				eventInterArrivalTime(constant(100));
 				raise(NUMBER_OF_SUBCRIPTIONS, Operations.peerSubscribe, uniform(NUMBER_OF_BITS));
 			}};
 		} 
 		else if (subscriptionsModel.equals("correlated")) { 
+			subscribing = new StochasticProcess() {{
+				eventInterArrivalTime(constant(100));
+				raise(1, Operations.allPeerSubscribe_C);
+			}};
+		}
+		else if (subscriptionsModel.equals("twitter")) { 
 			// Subscription
 			subscribing = new StochasticProcess() {{
 				eventInterArrivalTime(constant(100));
-				raise(1, Operations.allPeerSubscribe);
+				raise(1, Operations.allPeerSubscribe_T);
 			}};
 		}
 		
+// ---------------------------------------------------------------------		
 		// Publication
 		StochasticProcess publishing = new StochasticProcess() {{
 			eventInterArrivalTime(constant(100));
 			raise(NUMBER_OF_PUBLICATIONS, Operations.peerPublish, uniform(NUMBER_OF_BITS));
 		}};
 		
+// ---------------------------------------------------------------------		
 		// Unsubscribe 
 		StochasticProcess unsubscribing = new StochasticProcess() {{
 			eventInterArrivalTime(constant(100));
 			raise(NUMBER_OF_UNSUBSCRIPTIONS, Operations.peerUnsubscribe, uniform(NUMBER_OF_BITS));
 		}};
 		
-
+// ---------------------------------------------------------------------
 		StochasticProcess termination = new StochasticProcess() {{
 			eventInterArrivalTime(constant(1000));
 			raise(NUMBER_OF_PEERS, Operations.peerFail, uniform(NUMBER_OF_BITS));
@@ -83,6 +105,7 @@ public class Scenario1 extends Scenario {
 
 		serverstart.start();
 		joining.startAfterTerminationOf(8000, serverstart);
+		//joining.start();
 		subscribing.startAfterTerminationOf(500000, joining);
 		publishing.startAfterTerminationOf(80000, subscribing);
 		unsubscribing.startAfterTerminationOf(5000, publishing); 

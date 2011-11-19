@@ -180,8 +180,8 @@ public final class Peer extends ComponentDefinition {
 			
 			myPeerAddress = init.getMSPeerSelf();
 			myAddress = myPeerAddress.getPeerAddress();
-			serverPeerAddress = init.getServerPeerAddress();
-			serverAddress = serverPeerAddress.getPeerAddress(); //TODO: remove server
+			serverPeerAddress = null; //init.getServerPeerAddress();
+			serverAddress = null;// serverPeerAddress.getPeerAddress(); //TODO: remove server
 			friends = new Vector<PeerAddress>();
 			msgPeriod = init.getMSConfiguration().getSnapshotPeriod();
 
@@ -752,7 +752,7 @@ if (suspectedPeer.equals(pred))
 		//System.out.println("oldDistance:" + oldDistance);
 		
 		if (address != null) { 
-			//System.out.println("Peer " + myPeerAddress.getPeerId() + " routed a message on id " + nextPeer + " "  + address);
+			System.out.println("Peer " + myPeerAddress.getPeerId() + " routed a message on id " + nextPeer + " "  + address);
 			msg.setDestination(address);
 			trigger(msg, network);
 		}
@@ -837,7 +837,7 @@ if (suspectedPeer.equals(pred))
 	Handler<SubscriptionInit> handleSubscriptionInit = new Handler<SubscriptionInit>() {
 		@Override
 		public void handle(SubscriptionInit si) {
-			Vector<BigInteger> topicIDs = si.getTopicIDs();
+			Set<BigInteger> topicIDs = si.getTopicIDs();
 			
 			Iterator it = topicIDs.iterator();
 			while(it.hasNext()) {

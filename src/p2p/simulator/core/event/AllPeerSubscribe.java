@@ -4,10 +4,16 @@ import se.sics.kompics.Event;
 
 public final class AllPeerSubscribe extends Event {
 
-//-------------------------------------------------------------------	
-	public AllPeerSubscribe() {
+//-------------------------------------------------------------------
+	private String type; // "correlated", "twitter"
+	
+	public AllPeerSubscribe(String type) {
+		this.type = type;
 	}
 	
+	public String getType() {
+		return type;
+	}
 	//-------------------------------------------------------------------	
 	
 }
