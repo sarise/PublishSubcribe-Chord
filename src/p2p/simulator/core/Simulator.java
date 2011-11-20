@@ -75,6 +75,7 @@ public final class Simulator extends ComponentDefinition {
 	private final HashMap<BigInteger, Component> peers;
 	private final HashMap<BigInteger, PeerAddress> peersAddress;
 	
+	
 	private Component server;
 	private PeerAddress serverPeerAddress;
 	
@@ -120,12 +121,12 @@ public final class Simulator extends ComponentDefinition {
 			
 			idSpaceSize = new BigInteger(2 + "").pow(Scenario1.NUMBER_OF_BITS);
 			
-			
+			/*
 			int snapshotPeriod = peerConfiguration.getSnapshotPeriod();			
 			SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(snapshotPeriod, snapshotPeriod);
 			spt.setTimeoutEvent(new GenerateReport(spt));
 			trigger(spt, timer);
-			
+			*/
 		}
 	};
 
@@ -447,8 +448,11 @@ public final class Simulator extends ComponentDefinition {
 		
 		connect(network, peer.getNegative(Network.class), new MessageDestinationFilter(peerAddress));
 		connect(timer, peer.getNegative(Timer.class));
-
+/*
 		trigger(new PeerInit(msPeerAddress, serverPeerAddress, peerConfiguration, bootstrapConfiguration, fdConfiguration), 
+				peer.getControl());
+*/
+		trigger(new PeerInit(msPeerAddress, null, peerConfiguration, bootstrapConfiguration, fdConfiguration), 
 				peer.getControl());
 
 		trigger(new Start(), peer.getControl());

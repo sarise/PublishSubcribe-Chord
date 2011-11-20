@@ -40,9 +40,16 @@ public class Scenario1 extends Scenario {
 		
 		StochasticProcess serverstart = new StochasticProcess() {{
 			eventInterArrivalTime(constant(100));
-			raise(1, Operations.serverStart, uniform(NUMBER_OF_BITS));
+			//raise(1, Operations.serverStart, uniform(NUMBER_OF_BITS));
+			raise(1, Operations.peerJoin, uniform(NUMBER_OF_BITS));
 		}};
 
+		/*
+		StochasticProcess startOne = new StochasticProcess() {{
+			eventInterArrivalTime(constant(100));
+			raise(1, Operations.peerJoin, uniform(NUMBER_OF_BITS));
+		}};
+		*/
 		
 // ---------------------------------------------------------------------
 		// Joining
@@ -104,8 +111,11 @@ public class Scenario1 extends Scenario {
 		}};
 
 		serverstart.start();
-		joining.startAfterTerminationOf(8000, serverstart);
-		//joining.start();
+		joining.startAfterTerminationOf(5000, serverstart);
+		/*
+		startOne.start();
+		joining.startAfterTerminationOf(8000, startOne);
+		*/
 		subscribing.startAfterTerminationOf(500000, joining);
 		publishing.startAfterTerminationOf(80000, subscribing);
 		unsubscribing.startAfterTerminationOf(5000, publishing); 

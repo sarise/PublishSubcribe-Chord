@@ -74,6 +74,7 @@ public final class Peer extends ComponentDefinition {
 	private PeerAddress succ;
 	private PeerAddress[] fingers = new PeerAddress[FINGER_SIZE];
 	private PeerAddress[] succList = new PeerAddress[SUCC_SIZE];
+	int count =0;
 	
 	private int fingerIndex = 0;
 	private int joinCounter = 0;
@@ -210,7 +211,7 @@ public final class Peer extends ComponentDefinition {
 		@Override
 		public void handle(JoinPeer event) {
 			Snapshot.addPeer(myPeerAddress);
-			BootstrapRequest request = new BootstrapRequest("Lab0", viewSize); //("chord",1)
+			BootstrapRequest request = new BootstrapRequest("chord", viewSize); //("chord",1)
 			trigger(request, bootstrap.getPositive(P2pBootstrap.class));			
 		}
 	};
@@ -225,13 +226,16 @@ public final class Peer extends ComponentDefinition {
 //-------------------------------------------------------------------
 	
 	Handler<BootstrapResponse> handleBootstrapResponse = new Handler<BootstrapResponse>() {
-		@Override
+
+		@Override		
 		public void handle(BootstrapResponse event) {
+			
 			if (!bootstrapped) {
 				bootstrapped = true;
 				PeerAddress peer;
 				Set<PeerEntry> somePeers = event.getPeers();
-
+				System.out.println("Peer "+myPeerAddress +" in bootstrap response "+ count++ +" somePeers: "+somePeers );
+				
 				/*for (PeerEntry peerEntry : somePeers) {
 					peer = (PeerAddress)peerEntry.getOverlayAddress();
 					friends.addElement(peer);

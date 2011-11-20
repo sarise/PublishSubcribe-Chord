@@ -217,7 +217,7 @@ public class Server extends ComponentDefinition {
 	//-------------------------------------------------------------------
 		Handler<PeerInit> handleInit = new Handler<PeerInit>() {
 			public void handle(PeerInit init) {
-				System.out.println("  Server is initiated.");
+				
 				serverPeerAddress = init.getMSPeerSelf();
 				serverAddress = serverPeerAddress.getPeerAddress();
 				// serverAddress ??
@@ -225,7 +225,7 @@ public class Server extends ComponentDefinition {
 				msgPeriod = init.getMSConfiguration().getSnapshotPeriod();
 
 				viewSize = init.getMSConfiguration().getViewSize();
-
+				System.out.println("  Server is initiated."+serverAddress);
 				trigger(new BootstrapClientInit(serverAddress, init.getBootstrapConfiguration()), bootstrap.getControl());
 				trigger(new PingFailureDetectorInit(serverAddress, init.getFdConfiguration()), fd.getControl());
 			}
