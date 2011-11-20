@@ -120,12 +120,12 @@ public final class Simulator extends ComponentDefinition {
 			
 			idSpaceSize = new BigInteger(2 + "").pow(Scenario1.NUMBER_OF_BITS);
 			
-			/*
+			
 			int snapshotPeriod = peerConfiguration.getSnapshotPeriod();			
 			SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(snapshotPeriod, snapshotPeriod);
 			spt.setTimeoutEvent(new GenerateReport(spt));
 			trigger(spt, timer);
-			*/
+			
 		}
 	};
 
@@ -300,103 +300,59 @@ public final class Simulator extends ComponentDefinition {
 			DataInputStream instr = new DataInputStream(
 					new BufferedInputStream(new FileInputStream(fileName)));
 
-			// while(instr.available()>0){
+			// read the first DATASET_LENGTH lines from the twitter dataset
 			for (int i = 0; i < DATASET_LENGTH; i++) {
 				if (firstItr) {
 					oldSrc = instr.readInt();
 					newSrc = oldSrc;
 					subscription = instr.readInt();
 				
+					BigInteger bi = absolute(subscription);
+					subscriptions.add(bi);
+					twitterIDs.add(bi);
 					
+					twitterIDs.add(absolute(newSrc));
 					
-					if (subscription < 0){
-						subscriptions.add(convertPositive(subscription));
-						twitterIDs.add(convertPositive(newSrc));
-						twitterIDs.add(convertPositive(subscription));
-					}
-					else{
-						subscriptions.add(BigInteger.valueOf(subscription));
-						twitterIDs.add(BigInteger.valueOf(subscription));
-						twitterIDs.add(BigInteger.valueOf(newSrc));
-					}
-
 					firstItr = false;
 
 					continue;
 				}
+				
 				newSrc = instr.readInt();
 				subscription = instr.readInt();
 
-				if (newSrc == oldSrc) {
-					if (subscription < 0){
-						subscriptions.add(convertPositive(subscription));
-						if(!twitterIDs.contains(subscription))
-						twitterIDs.add(convertPositive(subscription));
-					}
-					else{
-						subscriptions.add(BigInteger.valueOf(subscription));
-						if(!twitterIDs.contains(subscription))
-						twitterIDs.add(BigInteger.valueOf(subscription));
-					}
+				if (newSrc != oldSrc) {
+					subscriptionListForAllNodes.put(absolute(oldSrc), subscriptions);
+					twitterIDs.add(absolute(oldSrc));
 					
-					// TODO: do not hardcode!
-					if(i==99){
-						subscriptionListForAllNodes.put(BigInteger.valueOf(oldSrc), subscriptions);
-					}
-				} else {
-					if (oldSrc < 0){
-					
-						subscriptionListForAllNodes.put(convertPositive(oldSrc), subscriptions);
-						if(!twitterIDs.contains(oldSrc))
-						twitterIDs.add(convertPositive(oldSrc));
-						
-					}
-					else{
-						
-						subscriptionListForAllNodes.put(BigInteger.valueOf(oldSrc), subscriptions);
-						if(!twitterIDs.contains(oldSrc))
-						twitterIDs.add(BigInteger.valueOf(oldSrc));
-						
-					}
-					// set.clear();
+					// preparing for the next node (new source)
 					subscriptions = new HashSet<BigInteger>();
-
-					if (subscription < 0){
-						subscriptions.add(convertPositive(subscription));
-						if(!twitterIDs.contains(subscription))
-						twitterIDs.add(convertPositive(subscription));
-					}
-					else{
-						subscriptions.add(BigInteger.valueOf(subscription));
-						if(!twitterIDs.contains(subscription))
-						twitterIDs.add(BigInteger.valueOf(subscription));
-					}
-
 					oldSrc = newSrc;
 				}
-
-			}
-			Set keys = subscriptionListForAllNodes.keySet();
-			Iterator it = keys.iterator();
-			for (int j = 0; j < keys.size(); j++) {
-				Object o = it.next();
-				Set values = subscriptionListForAllNodes.get(o);
-				Iterator it2 = values.iterator();
-
-				System.out.println("Key: " + o);
-				for (int k = 0; k < values.size(); k++) {
-					System.out.print(" || " + it2.next());
-				}
-				System.out.println("");
+				
+				BigInteger bi = absolute(subscription);
+				subscriptions.add(bi);
+				twitterIDs.add(bi);
 			}
 			
-			it = twitterIDs.iterator();
-			for (int l = 0; l < twitterIDs.size(); l++) {
-				System.out.print(" unique " + it.next());
+			if (!subscriptionListForAllNodes.containsKey(absolute(newSrc))){
+				subscriptionListForAllNodes.put(absolute(newSrc), subscriptions);
 			}
-
-
 			instr.close();
+			
+			/*
+			// Printing for debugging purpose
+			Set<BigInteger> keys = subscriptionListForAllNodes.keySet();
+			Iterator<BigInteger> it = keys.iterator();
+			for (int j = 0; j < keys.size(); j++) {
+				BigInteger o = it.next();
+				Set<BigInteger> value = subscriptionListForAllNodes.get(o);
+				System.out.println("Key: " + o + ", value: " + value);
+			}
+			
+			System.out.println("twitterIDs: " + twitterIDs);
+			*/
+			
 		} catch (IOException iox) {
 			System.out.println("Problem reading " + fileName);
 		}
@@ -411,6 +367,18 @@ public final class Simulator extends ComponentDefinition {
 		tmp = BigInteger.valueOf(id);
 		tmp = tmp.add(BigInteger.valueOf(Integer.MAX_VALUE));
 		return tmp;
+	}
+	
+	private BigInteger absolute(int id) {
+		BigInteger result = null;
+		
+		if (id < 0) {
+			result = BigInteger.valueOf(id * -1).add(BigInteger.valueOf(Integer.MAX_VALUE));
+		}
+		else
+			result = BigInteger.valueOf(id);
+		
+		return result;
 	}
 	
 	//-------------------------------------------------------------------	
