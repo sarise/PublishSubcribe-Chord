@@ -121,12 +121,11 @@ public final class Simulator extends ComponentDefinition {
 			
 			idSpaceSize = new BigInteger(2 + "").pow(Scenario1.NUMBER_OF_BITS);
 			
-			/*
+			
 			int snapshotPeriod = peerConfiguration.getSnapshotPeriod();			
 			SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(snapshotPeriod, snapshotPeriod);
 			spt.setTimeoutEvent(new GenerateReport(spt));
 			trigger(spt, timer);
-			*/
 		}
 	};
 

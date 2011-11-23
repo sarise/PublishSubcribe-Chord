@@ -1,6 +1,9 @@
 package se.sics.kompics.p2p.simulator.snapshot;
 
 import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.Vector;
 
@@ -12,6 +15,7 @@ import p2p.system.peer.PeerAddress;
 public class Snapshot {
 	private static int counter = 0;
 	private static TreeMap<PeerAddress, PeerInfo> peers = new TreeMap<PeerAddress, PeerInfo>();
+	private static TreeMap<BigInteger, PeerAddress> peers2 = new TreeMap<BigInteger, PeerAddress>();
 	private static Vector<PeerAddress> removedPeers = new Vector<PeerAddress>();
 	private static String FILENAME = "peer.out";
 	private static String DOTFILENAME = "peer.dot";
@@ -24,11 +28,13 @@ public class Snapshot {
 //-------------------------------------------------------------------
 	public static void addPeer(PeerAddress address) {
 		peers.put(address, new PeerInfo(address));
+		peers2.put(address.getPeerId(), address);
 	}
 
 //-------------------------------------------------------------------
 	public static void removePeer(PeerAddress address) {
 		peers.remove(address);
+		peers2.remove(address.getPeerId());
 		removedPeers.addElement(address);
 	}
 
@@ -102,6 +108,8 @@ public class Snapshot {
 		str += "fingers: " + verifyFingers(peersList) + "\n";
 		str += "succList: " + verifySuccList(peersList) + "\n";
 		//str += details(peersList);
+		
+		str += "notifications: " + verifyNotifications(peersList) + "\n";
 		
 		return str;
 	}
@@ -286,4 +294,78 @@ public class Snapshot {
 		
 		FileIO.append(str, DOTFILENAME);
 	}
+	
+//------------------------
+// PUB/SUB related checking -- HIT RATIO
+	
+	public static void addSubscription(BigInteger topicID, PeerAddress subscriber, BigInteger lastSequenceNum) {
+		PeerInfo peerInfo = peers.get(peers2.get(topicID));
+		
+		if (peerInfo == null) return;
+		
+		peerInfo.addSubscriber(subscriber);
+		
+		PeerInfo peerInfo2 = peers.get(subscriber);
+		peerInfo2.setStartingNumber(peers2.get(topicID), lastSequenceNum);
+	}
+	
+	public static void removeSubscription(BigInteger topicID, PeerAddress subscriber) {
+		PeerInfo peerInfo = peers.get(peers2.get(topicID));
+		
+		if (peerInfo == null)
+			return;
+		
+		peerInfo.removeSubscriber(subscriber);
+	}
+	
+	public static void receiveNotification(BigInteger topicID, PeerAddress subscriber, BigInteger notificationID) {
+		PeerInfo peerInfo = peers.get(subscriber);
+		
+		if (peerInfo == null)
+			return;
+		
+		peerInfo.addNotification(peers2.get(topicID), notificationID);
+	}
+	
+	public static void publish(PeerAddress publisher, BigInteger publicationID) {
+		PeerInfo peerInfo = peers.get(publisher);
+		
+		if (peerInfo == null)
+			return;
+		
+		peerInfo.setMyLastPublicationID(publicationID);
+	}
+	
+	private static String verifyNotifications(PeerAddress[] peersList) {
+		String str = "";
+		int wrongs[] = new int[peersList.length];
+		
+		for (int i = 0; i < peersList.length; i++) {
+			PeerInfo peer = peers.get(peersList[i]);
+			
+			if (peer == null) continue;
+			
+			wrongs[i] = -1;
+			
+			if (peer.isPublisher()) {
+				wrongs[i] = 0;
+				
+				Set<PeerAddress> subscribersList = peer.getSubscribersList();
+				Iterator<PeerAddress> iter = subscribersList.iterator();
+			    while (iter.hasNext()) {
+			    	PeerAddress subscriber = iter.next();
+			    	PeerInfo peer2 = peers.get(subscriber);
+			    	
+			    	if (peer2 == null) continue;
+			    	
+			    	if (!peer2.areNotificationsComplete(peer.getSelf(), peer.getLastPublicationID()))
+			    		wrongs[i]++;
+			    }
+			}
+		}
+		
+		return Arrays.toString(wrongs);
+		
+	}
+	
 }
