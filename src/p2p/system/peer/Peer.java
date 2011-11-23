@@ -703,6 +703,7 @@ public final class Peer extends ComponentDefinition {
 				System.out.println("# Peer " + myPeerAddress.getPeerId()
 						+ ", as a subscriber, received a notification about "
 						+ msg.getTopic());
+				Snapshot.receiveNotification(msg.getTopic(), myPeerAddress, msg.getSequenceNum());
 			} else {
 				System.out
 						.println("Peer "
@@ -933,6 +934,7 @@ public final class Peer extends ComponentDefinition {
 		SubscribeRequest sub = new SubscribeRequest(topicID, lastSequenceNum,
 				myAddress, null);
 
+		Snapshot.addSubscription(topicID, myPeerAddress, lastSequenceNum);
 		System.out.println("+ Peer " + myPeerAddress.getPeerId()
 				+ " is triggering a SubscribeRequest topicID: " + topicID
 				+ " hashed: " + hashedTopicID);
@@ -946,6 +948,7 @@ public final class Peer extends ComponentDefinition {
 		UnsubscribeRequest unsub = new UnsubscribeRequest(topicID, myAddress,
 				null);
 
+		Snapshot.removeSubscription(topicID, myPeerAddress);
 		System.out.println("- Peer " + myPeerAddress.getPeerId()
 				+ " is triggering a UnsubscribeRequest topicID: " + topicID
 				+ " hashed: " + hashedTopicID);
@@ -982,6 +985,7 @@ public final class Peer extends ComponentDefinition {
 			routeMessage(publication, hashedTopicID);
 		}
 
+		Snapshot.publish(myPeerAddress, publicationSeqNum);
 		publicationSeqNum.add(BigInteger.ONE);
 	}
 
