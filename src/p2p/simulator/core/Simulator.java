@@ -59,7 +59,7 @@ import se.sics.kompics.timer.Timer;
 
 public final class Simulator extends ComponentDefinition {
 
-	private final String TWITTER_DATASET_FILENAME = "bin/graph.sub";
+	private final String TWITTER_DATASET_FILENAME = "config/graph.sub";
 	private final int DATASET_LENGTH = 100;
 	
 	Positive<SimulatorPort> simulator = positive(SimulatorPort.class);
