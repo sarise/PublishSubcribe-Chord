@@ -59,8 +59,7 @@ import se.sics.kompics.timer.Timer;
 
 public final class Simulator extends ComponentDefinition {
 
-	//private final String TWITTER_DATASET_FILENAME = "./graph.sub";
-	private final String TWITTER_DATASET_FILENAME = "/Users/usuario/Documents/EMDC/sem3 2011/ID2219 Implementation of Distributed Computing/PublishSubscribeP2P/bin/graph.sub";
+	private final String TWITTER_DATASET_FILENAME = "bin/graph.sub";
 	private final int DATASET_LENGTH = 100;
 	
 	Positive<SimulatorPort> simulator = positive(SimulatorPort.class);
