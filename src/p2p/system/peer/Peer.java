@@ -832,6 +832,7 @@ public final class Peer extends ComponentDefinition {
 						succ.getPeerId())) {
 			// The rendezvous node is the successor
 			address = succ.getPeerAddress();
+			nextPeer = succ.getPeerId();
 		} else {
 			// I am not the rendezvous node, route the message to the rendezvous
 			// node
