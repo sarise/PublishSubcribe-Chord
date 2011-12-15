@@ -1,5 +1,6 @@
 package p2p.simulator.scenarios;
 
+import java.io.FileInputStream;
 import java.math.BigInteger;
 import java.util.Properties;
 
@@ -22,7 +23,8 @@ public class Scenario1 extends Scenario {
 	private static SimulationScenario scenario = new SimulationScenario() {{
 		
 		try {
-			configFile.load(this.getClass().getClassLoader().getResourceAsStream("simulation.properties"));
+			//configFile.load(this.getClass().getClassLoader().getResourceAsStream("simulation.properties"));
+			configFile.load(new FileInputStream("config/simulation.properties"));
 		} catch (Exception e) {
 			System.err.println("Error: couldn't load the properties file in Scenario1.java");
 		}
@@ -107,7 +109,7 @@ public class Scenario1 extends Scenario {
 // ---------------------------------------------------------------------
 		StochasticProcess termination = new StochasticProcess() {{
 			eventInterArrivalTime(constant(1000));
-			raise(NUMBER_OF_PEERS, Operations.peerFail, uniform(NUMBER_OF_BITS));
+			raise(NUMBER_OF_PEERS/10, Operations.peerFail, uniform(NUMBER_OF_BITS));
 		}};
 
 		serverstart.start();

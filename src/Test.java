@@ -14,6 +14,8 @@ public class Test {
 		
 		System.out.println("bi: " + bi + " hashedbi: " + hashedbi + " bi.hashCode(): " + bi.hashCode());
 		
+		
+		
 	}
 
 }
