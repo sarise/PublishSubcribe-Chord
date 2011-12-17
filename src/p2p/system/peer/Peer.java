@@ -1,6 +1,7 @@
 package p2p.system.peer;
 
 import java.math.BigInteger;
+
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,7 +23,7 @@ import p2p.system.peer.message.Publication;
 import p2p.system.peer.message.SubscribeRequest;
 import p2p.system.peer.message.TopicList;
 import p2p.system.peer.message.UnsubscribeRequest;
-
+import p2p.system.peer.ParentTable;
 //import centralized.simulator.snapshot.Snapshot;
 
 import se.sics.kompics.Component;
@@ -78,6 +79,8 @@ public final class Peer extends ComponentDefinition {
 	private PeerAddress succ;
 	private PeerAddress[] fingers = new PeerAddress[FINGER_SIZE];
 	private PeerAddress[] succList = new PeerAddress[SUCC_SIZE];
+	private ParentTable parentTable = new ParentTable();
+	
 	int count = 0;
 
 	private int fingerIndex = 0;
@@ -344,7 +347,41 @@ public final class Peer extends ComponentDefinition {
 		}
 	};
 
-	// -------------------------------------------------------------------
+private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
+		if (topicIDs == null)
+			return;
+		
+		Iterator<BigInteger> iter = topicIDs.iterator();
+		while (iter.hasNext()) {
+			BigInteger topicID = iter.next();
+	
+			BigInteger lastSequenceNumber = BigInteger.ZERO;
+			/*
+			if (mySubscriptions.containsKey(topicID))
+				lastSequenceNumber = mySubscriptions.get(topicID);
+			*/
+			
+			BigInteger hashedTopicID = hashFunction(topicID);
+			SubscribeRequest sub = new SubscribeRequest(topicID, lastSequenceNumber, myAddress, null, 0);
+
+			System.out.println("+ Peer " + myPeerAddress.getPeerId()
+					+ " is REsubscribing a SubscribeRequest topicID: " + topicID
+					+ " hashed: " + hashedTopicID);
+
+			routeMessage(sub, hashedTopicID);
+			
+			// Unsubscribe
+			
+			UnsubscribeRequest unsub = new UnsubscribeRequest(topicID, myAddress, oldLink.getPeerAddress());
+			
+			System.out.println("- Peer " + myPeerAddress.getPeerId()
+					+ " is triggering a UnsubscribeRequest topicID: " + topicID
+					+ " hashed: " + hashedTopicID);
+
+			trigger(unsub, network);
+		}
+	}	
+// -------------------------------------------------------------------
 	Handler<PeriodicStabilization> handlePeriodicStabilization = new Handler<PeriodicStabilization>() {
 		public void handle(PeriodicStabilization event) {
 			// System.out.println("*********************");
@@ -548,8 +585,13 @@ public final class Peer extends ComponentDefinition {
 						if (succList[i] != null
 								&& !succList[i].equals(myPeerAddress)
 								&& !succList[i].equals(suspectedPeer)) {
+							
+							PeerAddress oldLink = succ;
 							succ = succList[i];
-							fingers[0] = succ;
+							Set<BigInteger> set = parentTable.changeLink(oldLink, succ.getPeerAddress());
+							resubscribe(set, oldLink);
+							
+							
 							fdRegister(succ);
 							// Handling replication
 							// When successor changes, send my own forwarding
@@ -561,8 +603,12 @@ public final class Peer extends ComponentDefinition {
 							trigger(table, network);
 							*/
 							break;
-						} else
+						} else {
+							PeerAddress oldLink = succ;
+							Set<BigInteger> set = parentTable.removeLink(succ.getPeerAddress());
 							succ = null;
+							resubscribe(set, oldLink);
+						}
 					}
 
 					joinCounter = 0;
@@ -640,7 +686,7 @@ public final class Peer extends ComponentDefinition {
 
 				System.out.println("*** $ peer " + myPeerAddress.getPeerId()
 						+ " is the rendezvous node for topicID:"
-						+ publication.getTopic());
+						+ publication.getTopic() + "-" + publication.getSequenceNum());
 
 				// Add the publication to the EventRepository according to
 				// topicID
@@ -657,6 +703,8 @@ public final class Peer extends ComponentDefinition {
 						publication.getTopic(), publication.getSequenceNum(),
 						publication.getContent(), myAddress, null);
 				forwardNotification(notification);
+				
+				Snapshot.forwardNotification(publication.getTopic(), myPeerAddress, notification.getSequenceNum());
 			} else {
 				// I am not the rendezvous node
 
@@ -702,14 +750,15 @@ public final class Peer extends ComponentDefinition {
 			if (mySubscriptions.containsKey(msg.getTopic())) {
 				System.out.println("# Peer " + myPeerAddress.getPeerId()
 						+ ", as a subscriber, received a notification about "
-						+ msg.getTopic());
+						+ msg.getTopic() + " notification id: "+msg.getSequenceNum());
 				Snapshot.receiveNotification(msg.getTopic(), myPeerAddress, msg.getSequenceNum());
 			} else {
 				System.out
 						.println("Peer "
 								+ myPeerAddress.getPeerId()
-								+ " , as a forwarder only, received a notification about "
+								+ ", as a forwarder only, received a notification about "
 								+ msg.getTopic());
+				Snapshot.forwardNotification(msg.getTopic(), myPeerAddress, msg.getSequenceNum());
 			}
 
 			// Forward the notification using the forwardingTable
@@ -723,26 +772,23 @@ public final class Peer extends ComponentDefinition {
 			//
 			System.out.println("- Peer " + myPeerAddress.getPeerId()
 					+ " received an UnsubcribeRequest.");
+			
+			Snapshot.addToUnsubscribeOverhead(msg.getTopic());
 
-			UnsubscribeRequest newMsg = new UnsubscribeRequest(msg.getTopic(),
-					myAddress, null);
-			BigInteger hashedTopicID = hashFunction(msg.getTopic());
-
-			Set<Address> subscriberlist = myForwardingTable.get(newMsg
-					.getTopic());
+			// checking the forwarding table whether I can be safely removed from the relay path
+			Set<Address> subscriberlist = myForwardingTable.get(msg.getTopic());
 			if (subscriberlist == null) {
 				System.out.println("No entry in the forwarding table.");
-				routeMessage(newMsg, hashedTopicID);
+				sendUnsubscribeRequest(msg.getTopic());
 			} else {
 				subscriberlist.remove(msg.getSource());
 				if (subscriberlist.isEmpty()) {
 					System.out.println("No more subscribers.");
-					myForwardingTable.remove(newMsg.getTopic());
-					routeMessage(newMsg, hashedTopicID);
+					myForwardingTable.remove(msg.getTopic());
+					sendUnsubscribeRequest(msg.getTopic());
 				} else {
-					myForwardingTable.put(newMsg.getTopic(), subscriberlist);
-					System.out
-							.println("Not forwarding the UnsubscribeRequest. subscriberlist: "
+					//myForwardingTable.put(msg.getTopic(), subscriberlist);
+					System.out.println("Not forwarding the UnsubscribeRequest. subscriberlist: "
 									+ subscriberlist.toString());
 				}
 			}
@@ -758,8 +804,11 @@ public final class Peer extends ComponentDefinition {
 			// TODO: lastSequenceNum, should I check with the lastSequenceNum
 			// with respect to the forwarding table.
 			SubscribeRequest newMsg = new SubscribeRequest(msg.getTopic(),
-					msg.getLastSequenceNum(), myAddress, null);
-
+					msg.getLastSequenceNum(), myAddress, null, msg.getNumberOfHops() + 1);
+			
+		if(!myForwardingTable.containsKey(msg.getTopic())){
+			Snapshot.addToSubscribeTree(msg.getTopic());
+		}
 			Set<Address> tmp = myForwardingTable.get(newMsg.getTopic());
 			if (tmp == null) {
 				tmp = new HashSet<Address>();
@@ -767,8 +816,7 @@ public final class Peer extends ComponentDefinition {
 			tmp.add(msg.getSource());
 			myForwardingTable.put(newMsg.getTopic(), tmp);
 
-			SubscribeRequest msg2 = new SubscribeRequest(newMsg.getTopic(),
-					newMsg.getLastSequenceNum(), newMsg.getSource(), null);
+			
 
 			BigInteger hashedTopicID = hashFunction(msg.getTopic());
 
@@ -776,8 +824,9 @@ public final class Peer extends ComponentDefinition {
 			// " destination: " + hashedTopicID + " topicID: " +
 			// msg.getTopic());
 
-			routeMessage(msg2, hashedTopicID);
-			// routeMessage(msg2, msg.getTopic());
+			routeMessage(newMsg, hashedTopicID);
+			
+			Snapshot.becomesForwarder(msg.getTopic(), myPeerAddress);
 		}
 	};
 
@@ -824,9 +873,14 @@ public final class Peer extends ComponentDefinition {
 				&& between(destination, pred.getPeerId(),
 						myPeerAddress.getPeerId())) {
 			// I am the rendezvous node
-			System.out.println("***");// Peer " + myPeerAddress.getPeerId() + "
-										// is the rendezvous node for " +
-										// destination);
+			System.out.println("*** Peer " + myPeerAddress.getPeerId()
+					+ " is the rendezvous node for " + destination);
+			
+			if (msg instanceof SubscribeRequest) {
+				SubscribeRequest sb = (SubscribeRequest) msg;
+				Snapshot.addDepthToMulticastTree(sb.getTopic(), sb.getNumberOfHops());
+			}
+			return;
 		} else if (succ != null
 				&& between(destination, myPeerAddress.getPeerId(),
 						succ.getPeerId())) {
@@ -916,14 +970,35 @@ public final class Peer extends ComponentDefinition {
 		// System.out.println("oldDistance:" + oldDistance);
 
 		if (address != null) {
-			System.out.println("Peer " + myPeerAddress.getPeerId()
-					+ " routed a message on id " + nextPeer + " " + address);
+			if (myPeerAddress.getPeerId().equals(BigInteger.ZERO))
+				System.err
+						.println("Peer " + myPeerAddress.getPeerId()
+								+ " routed a message on id " + nextPeer + " "
+								+ address);
+/*
+			else
+				System.out
+						.println("Peer " + myPeerAddress.getPeerId()
+								+ " routed a message on id " + nextPeer + " "
+								+ address);
+*/
 			msg.setDestination(address);
 			trigger(msg, network);
+			
+			if (msg instanceof SubscribeRequest) {
+				SubscribeRequest sb = (SubscribeRequest) msg;
+				parentTable.addTopicID(address, sb.getTopic());
+			}
+			
+			// this code must not be executed, unsubscribe request is no longer forwarded using greedy routing.
+			else if (msg instanceof UnsubscribeRequest) {
+				UnsubscribeRequest sb = (UnsubscribeRequest) msg;
+				parentTable.removeTopic(sb.getTopic());
+			}
 		}
 
-		// else
-		// System.err.println("Message is dropped.");
+		else
+			System.err.println("Message is dropped.");
 
 	}
 
@@ -933,7 +1008,7 @@ public final class Peer extends ComponentDefinition {
 
 		BigInteger hashedTopicID = hashFunction(topicID);
 		SubscribeRequest sub = new SubscribeRequest(topicID, lastSequenceNum,
-				myAddress, null);
+				myAddress, null, 0);
 
 		Snapshot.addSubscription(topicID, myPeerAddress, lastSequenceNum);
 		System.out.println("+ Peer " + myPeerAddress.getPeerId()
@@ -941,25 +1016,25 @@ public final class Peer extends ComponentDefinition {
 				+ " hashed: " + hashedTopicID);
 
 		routeMessage(sub, hashedTopicID);
-		// routeMessage(sub, topicID);
+
+		Snapshot.becomesSubscriber(topicID, myPeerAddress);
 	}
 
 	private void sendUnsubscribeRequest(BigInteger topicID) {
-		BigInteger hashedTopicID = hashFunction(topicID);
-		UnsubscribeRequest unsub = new UnsubscribeRequest(topicID, myAddress,
-				null);
-
-		Snapshot.removeSubscription(topicID, myPeerAddress);
-		System.out.println("- Peer " + myPeerAddress.getPeerId()
-				+ " is triggering a UnsubscribeRequest topicID: " + topicID
-				+ " hashed: " + hashedTopicID);
-
-		routeMessage(unsub, hashedTopicID);
+		Set<Address> oldLinks = parentTable.removeTopic(topicID);
+		Iterator<Address> iter = oldLinks.iterator();
+		Address oldLink;
+		
+		while(iter.hasNext()){
+			oldLink = iter.next();
+			UnsubscribeRequest unsub = new UnsubscribeRequest(topicID, myAddress, oldLink);
+			trigger(unsub, network);
+		}
 	}
 
 	private void publish(BigInteger topicID, String content) {
-		System.out.println("\nPeer " + myPeerAddress.getPeerId()
-				+ " is publishing an event.");
+		System.out.println("\n!!!Peer " + myPeerAddress.getPeerId()
+				+ " is publishing an event with seq no. "+publicationSeqNum );
 
 		Publication publication = new Publication(topicID, publicationSeqNum,
 				content, myAddress, null);
@@ -987,7 +1062,7 @@ public final class Peer extends ComponentDefinition {
 		}
 
 		Snapshot.publish(myPeerAddress, publicationSeqNum);
-		publicationSeqNum.add(BigInteger.ONE);
+		publicationSeqNum = publicationSeqNum.add(BigInteger.ONE);
 	}
 
 	Handler<Start> handleStart = new Handler<Start>() {
@@ -1031,6 +1106,7 @@ public final class Peer extends ComponentDefinition {
 			if (mySubscriptions.containsKey(topicID))
 				lastSequenceNumber = mySubscriptions.get(topicID);
 			mySubscriptions.put(topicID, lastSequenceNumber);
+			Snapshot.setPeerSubscriptions(myPeerAddress, mySubscriptions.keySet());
 
 			sendSubscribeRequest(topicID, lastSequenceNumber);
 		}
@@ -1061,9 +1137,16 @@ public final class Peer extends ComponentDefinition {
 
 				// topicID should not be removed from the list, so that the next
 				// subscription can use the lastSequenceNumber
-				// mySubscriptions.remove(topicID);
-
-				sendUnsubscribeRequest(topicID);
+				mySubscriptions.remove(topicID);
+				Snapshot.setPeerSubscriptions(myPeerAddress, mySubscriptions.keySet());
+				
+				Snapshot.removeSubscription(topicID, myPeerAddress);
+				
+				// if I am also a forwarder, don't send unsubscribe request
+				// otherwise, the relay path will be broken.
+				if (!myForwardingTable.containsKey(topicID)) {
+					sendUnsubscribeRequest(topicID);
+				}
 			}
 		}
 	};

@@ -22,7 +22,7 @@ public class Publication extends Message{
 	private BigInteger sequenceNum;
 
 	
-	public Publication(BigInteger topicID, BigInteger seqNum, String content, Address source, Address destination) {		
+	public Publication(BigInteger topicID, BigInteger sequenceNum, String content, Address source, Address destination) {		
 		super(source, destination);
 		this.topicID = topicID;
 		this.content = content;
