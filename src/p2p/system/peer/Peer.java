@@ -211,8 +211,8 @@ public final class Peer extends ComponentDefinition {
 			trigger(new PingFailureDetectorInit(myAddress,
 					init.getFdConfiguration()), fd.getControl());
 
-			System.out.println("Peer " + myPeerAddress.getPeerId()
-					+ " is initialized.");
+		//	System.out.println("Peer " + myPeerAddress.getPeerId()
+			//		+ " is initialized.");
 		}
 	};
 
@@ -364,9 +364,9 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 			BigInteger hashedTopicID = hashFunction(topicID);
 			SubscribeRequest sub = new SubscribeRequest(topicID, lastSequenceNumber, myAddress, null, 0);
 
-			System.out.println("+ Peer " + myPeerAddress.getPeerId()
-					+ " is REsubscribing a SubscribeRequest topicID: " + topicID
-					+ " hashed: " + hashedTopicID);
+	//		System.out.println("+ Peer " + myPeerAddress.getPeerId()
+		//			+ " is REsubscribing a SubscribeRequest topicID: " + topicID
+			//		+ " hashed: " + hashedTopicID);
 
 			routeMessage(sub, hashedTopicID);
 			
@@ -374,9 +374,9 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 			
 			UnsubscribeRequest unsub = new UnsubscribeRequest(topicID, myAddress, oldLink.getPeerAddress());
 			
-			System.out.println("- Peer " + myPeerAddress.getPeerId()
-					+ " is triggering a UnsubscribeRequest topicID: " + topicID
-					+ " hashed: " + hashedTopicID);
+		//	System.out.println("- Peer " + myPeerAddress.getPeerId()
+			//		+ " is triggering a UnsubscribeRequest topicID: " + topicID
+				//	+ " hashed: " + hashedTopicID);
 
 			trigger(unsub, network);
 		}
@@ -684,9 +684,9 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 					myPeerAddress.getPeerId())) {
 				// I am the rendezvous node
 
-				System.out.println("*** $ peer " + myPeerAddress.getPeerId()
-						+ " is the rendezvous node for topicID:"
-						+ publication.getTopic() + "-" + publication.getSequenceNum());
+		//		System.out.println("*** $ peer " + myPeerAddress.getPeerId()
+			//			+ " is the rendezvous node for topicID:"
+				//		+ publication.getTopic() + "-" + publication.getSequenceNum());
 
 				// Add the publication to the EventRepository according to
 				// topicID
@@ -748,9 +748,9 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 
 			// Check whether I am also the subscriber for that topicID
 			if (mySubscriptions.containsKey(msg.getTopic())) {
-				System.out.println("# Peer " + myPeerAddress.getPeerId()
-						+ ", as a subscriber, received a notification about "
-						+ msg.getTopic() + " notification id: "+msg.getSequenceNum());
+		//		System.out.println("# Peer " + myPeerAddress.getPeerId()
+			//			+ ", as a subscriber, received a notification about "
+				//		+ msg.getTopic() + " notification id: "+msg.getSequenceNum());
 				Snapshot.receiveNotification(msg.getTopic(), myPeerAddress, msg.getSequenceNum());
 			} else {
 				System.out
@@ -770,8 +770,8 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 	Handler<UnsubscribeRequest> unsubscribeHandler = new Handler<UnsubscribeRequest>() {
 		public void handle(UnsubscribeRequest msg) {
 			//
-			System.out.println("- Peer " + myPeerAddress.getPeerId()
-					+ " received an UnsubcribeRequest.");
+	//		System.out.println("- Peer " + myPeerAddress.getPeerId()
+		//			+ " received an UnsubcribeRequest.");
 			
 			Snapshot.addToUnsubscribeOverhead(msg.getTopic());
 
@@ -788,8 +788,8 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 					sendUnsubscribeRequest(msg.getTopic());
 				} else {
 					//myForwardingTable.put(msg.getTopic(), subscriberlist);
-					System.out.println("Not forwarding the UnsubscribeRequest. subscriberlist: "
-									+ subscriberlist.toString());
+			//		System.out.println("Not forwarding the UnsubscribeRequest. subscriberlist: "
+				//					+ subscriberlist.toString());
 				}
 			}
 		}
@@ -873,8 +873,8 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 				&& between(destination, pred.getPeerId(),
 						myPeerAddress.getPeerId())) {
 			// I am the rendezvous node
-			System.out.println("*** Peer " + myPeerAddress.getPeerId()
-					+ " is the rendezvous node for " + destination);
+		//	System.out.println("*** Peer " + myPeerAddress.getPeerId()
+			//		+ " is the rendezvous node for " + destination);
 			
 			if (msg instanceof SubscribeRequest) {
 				SubscribeRequest sb = (SubscribeRequest) msg;
