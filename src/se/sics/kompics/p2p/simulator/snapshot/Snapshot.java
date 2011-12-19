@@ -23,10 +23,10 @@ public class Snapshot {
 	private static Vector<PeerAddress> removedPeers = new Vector<PeerAddress>();
 	private static String FILENAME = "peer.out";
 	private static String DOTFILENAME = "peer.dot";
-	private static String TRACESOUT = "result_"+System.nanoTime()+".txt";
-	private static String TRACE_HEADER = "#Settings: \n # Peers: "+Scenario1.NUMBER_OF_PEERS+" #Subscriptions: "+Scenario1.NUMBER_OF_SUBCRIPTIONS+" #Publications: "+Scenario1.NUMBER_OF_PUBLICATIONS
-			+" #UnSubscriptions: "+Scenario1.NUMBER_OF_UNSUBSCRIPTIONS+" Subscription model: "+Scenario1.subscriptionsModel+ "\n"+
-											"#1. counter\n" + 
+	private static String TRACESOUT = DateUtils.now() + "_" + Scenario1.NUMBER_OF_PEERS +  ".txt";
+	private static String TRACE_HEADER = "#Settings: \n# Peers: "+Scenario1.NUMBER_OF_PEERS+" #Subscriptions: "+Scenario1.NUMBER_OF_SUBCRIPTIONS+" #Publications: "+Scenario1.NUMBER_OF_PUBLICATIONS
+	+" #UnSubscriptions: "+Scenario1.NUMBER_OF_UNSUBSCRIPTIONS+" Subscription model: "+Scenario1.subscriptionsModel+ "\n"+
+											"#1. counter\n" +  
 											"#2. Unsubscribe request messages\n" + 
 											"#3. Subscribe request messages\n" +
 											"#4. * CONTROL MESSAGES\n" +
@@ -43,7 +43,8 @@ public class Snapshot {
 	private static HashMap<BigInteger, Integer> unsubscribeOverhead = new HashMap<BigInteger, Integer>();
 	private static HashMap<BigInteger, Vector<Integer>> multicastTree = new HashMap<BigInteger, Vector<Integer>>();
 	private static int writetograph = 0;
-	private static final int TICK = 10;
+	private static int writetofile = 0;
+	private static final int TICK = 1;
 	private static final Random rand = new Random();
 	private static final DecimalFormat df4 = new DecimalFormat("#.0000");
 	private static final DecimalFormat df2 = new DecimalFormat("#.00");
@@ -193,8 +194,12 @@ public static void setFingers(PeerAddress address, PeerAddress[] fingers) {
 						df0.format(forwardingOverhead.get(1)) + "\t" +
 						df4.format(forwardingOverhead.get(2))  + "\n";
 						
-		
+		if(writetofile == TICK){
 		FileIO.append(trace, TRACESOUT);
+		writetofile = 0;
+		}
+		
+		writetofile++;
 		return str;
 	}
 
@@ -551,6 +556,15 @@ private static String verifyFingers(PeerAddress[] peersList) {
 
 		peerInfo.addAsForwarderSet(topicID);
 	}
+	
+	public static void cancelForwarder(BigInteger topicID, PeerAddress forwarder) {
+		PeerInfo peerInfo = peers.get(forwarder);
+
+		if (peerInfo == null)
+			return;
+
+		peerInfo.removeFromAsForwarderSet(topicID);
+	}
 
 	// Peer is participating as subscriber for a topic in the relay path - Structure related
 
@@ -562,6 +576,16 @@ private static String verifyFingers(PeerAddress[] peersList) {
 		
 		peerInfo.addAsSubscriberSet(topicID);
 	}
+	
+	public static void cancelSubscriber(BigInteger topicID, PeerAddress subscriber) {
+		PeerInfo peerInfo = peers.get(subscriber);
+
+		if (peerInfo == null)
+			return;
+		
+		peerInfo.removeFromAsSubscriberSet(topicID);
+	}
+	
 	
 	// should it be synchronized?
 	public static void addToSubscribeTree(BigInteger topicID) {
