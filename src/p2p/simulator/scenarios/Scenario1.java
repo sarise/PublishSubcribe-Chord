@@ -14,6 +14,7 @@ public class Scenario1 extends Scenario {
 	public static  int NUMBER_OF_PUBLICATIONS;
 	public static  int NUMBER_OF_UNSUBSCRIPTIONS;
 	public static int NUMBER_OF_BITS;
+	public static int PEERS_PER_BLOCK;
 	public static String subscriptionsModel;
 	public static String publicationsModel;
 	
@@ -23,7 +24,9 @@ public class Scenario1 extends Scenario {
 	
 	public static Properties configFile = new Properties();
 	
-	private static SimulationScenario scenario = new SimulationScenario() {{
+	private static SimulationScenario scenario = new SimulationScenario() {
+
+	{
 		
 		try {
 			//configFile.load(this.getClass().getClassLoader().getResourceAsStream("simulation.properties"));
@@ -41,6 +44,7 @@ public class Scenario1 extends Scenario {
 		publicationsModel = configFile.getProperty("PublicationsModel");
 		
 		NUMBER_OF_BITS = Integer.parseInt(configFile.getProperty("NumberOfBits"));
+		PEERS_PER_BLOCK = Integer.parseInt(configFile.getProperty("SubscriptionsPerNode"));
 		
 		//NUMBER_OF_LONGLINKS = Integer.parseInt(configFile.getProperty("NumberOfLonglinks"));
 		//NUMBER_OF_FRIENDLINKS =  Integer.parseInt(configFile.getProperty("NumberOfFriendlinks"));
@@ -112,6 +116,13 @@ public class Scenario1 extends Scenario {
 		}};
 		
 		//*/
+		
+		//Churn
+		StochasticProcess churn = new StochasticProcess() {{
+			eventInterArrivalTime(constant(2000));
+			raise(NUMBER_OF_PEERS/10, Operations.peerFail, uniform(NUMBER_OF_BITS));
+			//raise(1, Operations.peerFail, uniform(NUMBER_OF_BITS));
+		}};
 // ---------------------------------------------------------------------
 		StochasticProcess termination = new StochasticProcess() {{
 			eventInterArrivalTime(constant(10000));
@@ -123,6 +134,7 @@ public class Scenario1 extends Scenario {
 		joining.startAfterTerminationOf(5000, firstPeerStart);
 
 		subscribing.startAfterTerminationOf(500000, joining);
+	//	churn.startAfterTerminationOf(5000, subscribing);
 		publishing.startAfterTerminationOf(80000, subscribing);
 		unsubscribing.startAfterTerminationOf(5000, publishing); 
 		// TODO: ask Amir why starting the unsubcribing process after 

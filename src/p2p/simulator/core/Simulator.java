@@ -226,14 +226,7 @@ public final class Simulator extends ComponentDefinition {
 	Handler<AllPeerSubscribe_C> handleAllPeerSubscribe_C = new Handler<AllPeerSubscribe_C>() {
 		public void handle(AllPeerSubscribe_C event) {
 			
-			Properties configFile = new Properties();
-			try {
-				configFile.load(this.getClass().getClassLoader().getResourceAsStream("simulation.properties"));
-			} catch (Exception e) {
-				System.err.println("Error: couldn't load the properties file in Scenario1.java");
-			}
-			
-			int peersPerBlock = Integer.parseInt(configFile.getProperty("SubscriptionsPerNode"));
+			int peersPerBlock = Scenario1.PEERS_PER_BLOCK;
 			
 			determineSubscription(true, peersPerBlock);
 		
@@ -479,7 +472,7 @@ public final class Simulator extends ComponentDefinition {
 			Map.Entry entry = (Map.Entry) it2.next();
 			Component peer = (Component) entry.getValue();
 			
-			
+			//System.out.println("Assigning a block to peer "+entry.getKey());
 			SubscriptionInit si = new SubscriptionInit(blocks[rand.nextInt(numOfBlocks)]);
 			Positive pos = peer.getPositive(PeerPort.class);
 			trigger(si, pos);
