@@ -175,11 +175,15 @@ public static void setFingers(PeerAddress address, PeerAddress[] fingers) {
 		double hitratio = verifyNotifications(peersList);
 		Vector<Double> relaynode = computeRelayNodeRatio(peersList);
 		Vector<Double> forwardingOverhead = computeForwardingOverhead(peersList);
+		int tableSize = computeForwardingTableSize(peersList);
 		str += "1. control message. T: " + (unsub + sub) + " U: " + unsub + " S: " + sub + "\n";
 		str += "2. average multicast tree depth. " + depths + "\n";
 		str += "3. hit ratio. notifications: " + hitratio + "\n";
 		str += "4. relay node ratio: \t" + relaynode + "\n";
 		str += "5. forwarding overhead:\t" + forwardingOverhead	+ "\n";
+		str += "6. forwarding table size:\t" + tableSize	+ "\n";
+		
+		 
 		
 		String trace = counter + "\t" + 
 						unsub + "\t" + 
@@ -759,6 +763,22 @@ private static String verifyFingers(PeerAddress[] peersList) {
 		return count;
 	}
 
+	public static int computeForwardingTableSize(PeerAddress[] peersList) {
+		int count = 0;
+		int avg = 0;
+
+		for (int i = 0; i < peersList.length; i++) {
+			PeerInfo peer = peers.get(peersList[i]);
+
+			if (peer == null)
+				continue;
+			
+			count += peer.getForwardingTableSize();	
+		}
+		avg = count/peersList.length;
+		
+		return avg;
+	}
 	public static Vector<Double> computeForwardingOverhead(PeerAddress[] peersList) {
 		double F = computeTotalForwardersCount(peersList);
 		double S = computeTotalSubscribersCount(peersList);
@@ -902,6 +922,16 @@ private static String verifyFingers(PeerAddress[] peersList) {
 			union = subscriptions1.size() + subscriptions2.size() - sameTopicIDs;
 			return ((double) sameTopicIDs) / ((double) union);
 		}
+	}
+	
+	public static void writeForwardingTableSize(PeerAddress peer, int size){
+		
+		PeerInfo peerInfo = peers.get(peer);
+
+		if (peerInfo == null)
+			return;
+
+		peerInfo.setForwardingTableSize(size);
 	}
 
 }

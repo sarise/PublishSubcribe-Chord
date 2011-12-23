@@ -828,6 +828,14 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 			// System.out.println("id: " + myPeerAddress.getPeerId() +
 			// " destination: " + hashedTopicID + " topicID: " +
 			// msg.getTopic());
+			int size =0;
+			Set<BigInteger> set = myForwardingTable.keySet();
+			Iterator<BigInteger> it = set.iterator();
+			while(it.hasNext())
+				size+=myForwardingTable.get(it.next()).size();
+			Snapshot.writeForwardingTableSize(myPeerAddress, size);
+			
+			
 
 			routeMessage(newMsg, hashedTopicID);
 			
@@ -975,18 +983,16 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 		// System.out.println("oldDistance:" + oldDistance);
 
 		if (address != null) {
-			if (myPeerAddress.getPeerId().equals(BigInteger.ZERO))
-				System.err
-						.println("Peer " + myPeerAddress.getPeerId()
-								+ " routed a message on id " + nextPeer + " "
-								+ address);
-/*
-			else
-				System.out
-						.println("Peer " + myPeerAddress.getPeerId()
-								+ " routed a message on id " + nextPeer + " "
-								+ address);
-*/
+			/*
+			if (myPeerAddress.getPeerId().equals(BigInteger.ZERO)) 
+				System.err.println("Peer " + myPeerAddress.getPeerId()
+						+ " routed a message on id " + nextPeer + " " + address);
+			
+			else 
+				System.out.println("Peer " + myPeerAddress.getPeerId()
+						+ " routed a message on id " + nextPeer + " " + address);
+						*/
+			
 			msg.setDestination(address);
 			trigger(msg, network);
 			
@@ -1016,9 +1022,9 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 				myAddress, null, 0);
 
 		Snapshot.addSubscription(topicID, myPeerAddress, lastSequenceNum);
-		System.out.println("+ Peer " + myPeerAddress.getPeerId()
-				+ " is triggering a SubscribeRequest topicID: " + topicID
-				+ " hashed: " + hashedTopicID);
+	//	System.out.println("+ Peer " + myPeerAddress.getPeerId()
+		//		+ " is triggering a SubscribeRequest topicID: " + topicID
+			//	+ " hashed: " + hashedTopicID);
 
 		routeMessage(sub, hashedTopicID);
 
@@ -1038,8 +1044,8 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 	}
 
 	private void publish(BigInteger topicID, String content) {
-		System.out.println("\n!!!Peer " + myPeerAddress.getPeerId()
-				+ " is publishing an event with seq no. "+publicationSeqNum );
+	//	System.out.println("\nPeer " + myPeerAddress.getPeerId()
+		//		+ " is publishing an event.");
 
 		Publication publication = new Publication(topicID, publicationSeqNum,
 				content, myAddress, null);
@@ -1056,13 +1062,13 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 			// Stop routing the publication
 			// And then, start to forward the corresponding notification based
 			// on the forwardingTable
-			System.out.println("$ I am the rendezvous node.");
+		//	System.out.println("$ I am the rendezvous node.");
 			Notification notification = new Notification(
 					publication.getTopic(), publication.getSequenceNum(),
 					publication.getContent(), myAddress, null);
 			forwardNotification(notification);
 		} else {
-			System.out.println("$ Route the message.");
+		//	System.out.println("$ Route the message.");
 			routeMessage(publication, hashedTopicID);
 		}
 
@@ -1124,8 +1130,8 @@ private void resubscribe(Set<BigInteger> topicIDs, PeerAddress oldLink) {
 		@Override
 		public void handle(UnsubscribePeer event) {
 
-			System.out.println("Peer " + myPeerAddress.getPeerId()
-					+ " is unsubscribing an event.");
+		//	System.out.println("Peer " + myPeerAddress.getPeerId()
+			//		+ " is unsubscribing an event.");
 
 			if (!mySubscriptions.isEmpty()) {
 				Set<BigInteger> topicIDs = mySubscriptions.keySet(); // TODO: we
